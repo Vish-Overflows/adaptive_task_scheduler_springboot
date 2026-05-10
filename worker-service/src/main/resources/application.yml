@@ -1,0 +1,29 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: worker-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+
+orchestrator:
+  worker:
+    service-name: worker-service
+    worker-id: ${WORKER_ID:worker-local-1}
+    version: 0.1.0
+    environment: ${ORCHESTRATOR_ENVIRONMENT:local}
+    scheduler-base-url: ${SCHEDULER_BASE_URL:http://localhost:8080}
+    public-base-url: ${WORKER_PUBLIC_BASE_URL:http://localhost:${SERVER_PORT:8081}}
+    heartbeat-interval-ms: ${WORKER_HEARTBEAT_INTERVAL_MS:5000}
+    max-concurrent-jobs: ${WORKER_MAX_CONCURRENT_JOBS:4}
+    registration-enabled: ${WORKER_REGISTRATION_ENABLED:true}

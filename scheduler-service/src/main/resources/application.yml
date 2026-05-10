@@ -1,0 +1,54 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: scheduler-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/orchestrator}
+    username: ${SPRING_DATASOURCE_USERNAME:orchestrator}
+    password: ${SPRING_DATASOURCE_PASSWORD:orchestrator}
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+
+orchestrator:
+  scheduler:
+    service-name: scheduler-service
+    version: 0.1.0
+    environment: ${ORCHESTRATOR_ENVIRONMENT:local}
+  queues:
+    pending-jobs-key: ${ORCHESTRATOR_PENDING_JOBS_KEY:orchestrator:jobs:pending}
+  workers:
+    registry-key: ${ORCHESTRATOR_WORKER_REGISTRY_KEY:orchestrator:workers:registry}
+    heartbeat-timeout: ${ORCHESTRATOR_WORKER_HEARTBEAT_TIMEOUT:15s}
+  dispatch:
+    enabled: ${ORCHESTRATOR_DISPATCH_ENABLED:true}
+    interval-ms: ${ORCHESTRATOR_DISPATCH_INTERVAL_MS:1000}
+    max-jobs-per-tick: ${ORCHESTRATOR_DISPATCH_MAX_JOBS_PER_TICK:1}
+  scheduling:
+    policy: ${ORCHESTRATOR_SCHEDULING_POLICY:LEAST_LOADED}
+  fault-tolerance:
+    enabled: ${ORCHESTRATOR_FAULT_TOLERANCE_ENABLED:true}
+    in-flight-timeout: ${ORCHESTRATOR_IN_FLIGHT_TIMEOUT:60s}
+    scan-interval-ms: ${ORCHESTRATOR_FAULT_SCAN_INTERVAL_MS:5000}
+    max-retries: ${ORCHESTRATOR_MAX_RETRIES:3}
