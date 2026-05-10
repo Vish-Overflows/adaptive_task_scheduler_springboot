@@ -1,94 +1,208 @@
-# Fault-Tolerant Distributed Workload Orchestrator
+# Adaptive Task Scheduler
 
-An adaptive distributed workload scheduler built as a serious backend/systems project. The system will accept computational jobs, schedule them across containerized workers, recover from worker failures, and benchmark scheduling policies under controlled workloads.
+A small distributed workload scheduler built with Spring Boot, PostgreSQL, Redis, Docker, and React.
 
-This repository is currently at **Phase 9: frontend dashboard and operator control plane**.
+The project started from a simple question: if a system receives many jobs, how should it decide which worker should run each one? This repository explores that question by building the moving parts around it: job intake, durable state, worker heartbeats, scheduling policies, retries after failure, metrics, benchmarks, and a browser dashboard to operate the system.
 
-## Current Capabilities
+This is not a general-purpose job runner. Workers execute a fixed set of bounded demo workloads so the scheduler can be tested safely and repeatedly.
 
-- Multi-module Java 21 / Spring Boot 3 codebase
-- `scheduler-service` Spring Boot application
-- `worker-service` Spring Boot application
-- Shared DTO/contracts module
-- PostgreSQL and Redis local infrastructure
-- Docker Compose cluster with one scheduler and three workers
-- Actuator health, readiness, metrics, and Prometheus endpoints
-- Service identity APIs for scheduler and workers
-- Validated job submission API
-- PostgreSQL-backed job records
-- Redis-backed pending job queue
-- Optional idempotency keys for safe repeated submissions
-- Redis-backed worker registry
-- Worker auto-registration and heartbeat reporting
-- Worker health API with `ACTIVE` / `UNHEALTHY` status
-- Scheduler dispatch loop
-- Worker-side job execution endpoint
-- Seven built-in deterministic worker workloads
-- Completion callbacks from workers to scheduler
-- End-to-end job lifecycle from `QUEUED` to `COMPLETED`
-- Configurable scheduling policies:
-  - `ROUND_ROBIN`
-  - `LEAST_LOADED`
-  - `PRIORITY_AWARE`
-  - `SHORTEST_JOB_FIRST`
-  - `ADAPTIVE`
-- Fault monitor for unhealthy workers and stuck in-flight jobs
-- Retry budget with permanent failure after exhaustion
-- Duplicate completion callback hardening
-- Prometheus metrics and JSON metrics summary API
-- Python benchmark runner for policy comparison
-- Python ML training component using logistic regression and decision tree classifiers
-- React frontend dashboard for job submission, policy control, worker visibility, and metrics exploration
+## What It Does
 
-## Target Architecture
+- Accepts jobs through a scheduler API.
+- Stores job history and lifecycle timestamps in PostgreSQL.
+- Uses Redis for the pending-job queue and live worker registry.
+- Runs multiple Spring Boot worker services.
+- Lets workers register themselves and send heartbeats.
+- Dispatches queued jobs to healthy workers.
+- Tracks each job from `QUEUED` to `SCHEDULED`, `RUNNING`, `COMPLETED`, or `FAILED`.
+- Supports retries when workers become unhealthy or jobs get stuck.
+- Exposes scheduling policies that can be changed at runtime.
+- Provides Prometheus metrics and a JSON metrics summary API.
+- Includes benchmark tooling to compare policy behavior.
+- Includes a lightweight ML training component for policy-selection experiments.
+- Includes a React dashboard for submitting jobs, choosing policies, viewing workers, and inspecting metrics.
+
+## Why This Project Exists
+
+Many student projects stop at CRUD APIs. This one is meant to exercise more realistic backend concerns:
+
+- coordination between services
+- durable vs ephemeral state
+- failure handling
+- scheduling tradeoffs
+- observability
+- repeatable benchmarking
+- a UI that makes the system understandable to someone else
+
+The useful part is not just that jobs run. The useful part is that the project records how they were scheduled, which worker handled them, how long they waited, how long they ran, and what happened when workers failed.
+
+## Architecture
+
+The system has two main roles:
+
+- **Scheduler:** accepts jobs, stores state, chooses workers, tracks failures, exposes APIs and metrics.
+- **Workers:** register with the scheduler, execute bounded workloads, and report completion.
+
+PostgreSQL is used for durable job history. Redis is used for fast coordination: pending jobs and worker heartbeat state.
 
 ```text
-                         +---------------------+
-                         |      Client/API      |
-                         +----------+----------+
-                                    |
-                                    v
-                         +---------------------+
-                         |  Scheduler Service  |
-                         |  Spring Boot / Java |
-                         +----+-----------+----+
-                              |           |
-                  job queue   |           | historical state
-                              v           v
-                         +---------+   +-------------+
-                         |  Redis  |   | PostgreSQL  |
-                         +---------+   +-------------+
-                              |
-               assigns jobs / tracks workers
-                              |
-        +---------------------+---------------------+
-        v                     v                     v
-+---------------+     +---------------+     +---------------+
-|   Worker 1    |     |   Worker 2    |     |   Worker 3    |
-| Spring Boot   |     | Spring Boot   |     | Spring Boot   |
-+---------------+     +---------------+     +---------------+
+Browser / API client
+        |
+        v
++--------------------+
+| Scheduler Service  |
+| Spring Boot        |
++----+----------+----+
+     |          |
+     |          +------------------+
+     |                             |
+     v                             v
++----------+                 +------------+
+| Redis    |                 | PostgreSQL |
+| queues   |                 | job history|
+| workers  |                 | timestamps |
++----+-----+                 +------------+
+     |
+     | dispatches work to healthy workers
+     v
++-----------+    +-----------+    +-----------+
+| Worker 1  |    | Worker 2  |    | Worker 3  |
+| Spring    |    | Spring    |    | Spring    |
++-----------+    +-----------+    +-----------+
 ```
+
+The React frontend talks to the scheduler API. It does not talk directly to Redis, Postgres, or workers.
+
+## Scheduling Policies
+
+The scheduler currently supports:
+
+| Policy | Behavior |
+| --- | --- |
+| `ROUND_ROBIN` | Rotates across available workers. |
+| `LEAST_LOADED` | Picks the worker with the lowest current load. |
+| `PRIORITY_AWARE` | Gives higher-priority jobs earlier treatment. |
+| `SHORTEST_JOB_FIRST` | Favors jobs with lower estimated runtime. |
+| `ADAPTIVE` | Chooses a scheduling style from workload features. |
+
+The active policy can be changed through the API or the dashboard.
+
+## Built-In Workloads
+
+Workers do real bounded computation, not arbitrary user code.
+
+| Type | Example payload |
+| --- | --- |
+| `CPU_BENCHMARK` | `{"upperBound": 50000}` |
+| `MATRIX_MULTIPLY` | `{"matrixSize": 64}` |
+| `HASH_COMPUTE` | `{"iterations": 100000}` |
+| `SORT_BENCHMARK` | `{"itemCount": 100000}` |
+| `MONTE_CARLO_PI` | `{"samples": 250000}` |
+| `JSON_TRANSFORM` | `{"records": 50000}` |
+| `GRAPH_TRAVERSAL` | `{"nodes": 2000, "edgesPerNode": 4}` |
+
+The bounds keep the system demo-friendly while still giving the scheduler meaningful work to distribute.
 
 ## Repository Layout
 
 ```text
 .
+├── benchmarks/          # Python benchmark runner
+├── docs/                # phase notes and deployment guide
+├── frontend/            # React dashboard
+├── ml/                  # policy-selection training experiment
+├── scheduler-service/   # Spring Boot scheduler
+├── shared/              # shared DTOs/contracts
+├── worker-service/      # Spring Boot worker
 ├── docker-compose.yml
-├── pom.xml
-├── frontend/
-├── shared/
-├── scheduler-service/
-├── worker-service/
-└── docs/
+└── pom.xml
 ```
 
-## Services
+## Running Locally
 
-### Scheduler Service
+The easiest way to run the full system is Docker Compose.
 
-The scheduler is the control plane. It will own job submission, worker state, scheduling policies, benchmark execution, and metrics.
+```bash
+docker compose up --build
+```
 
-Current endpoint:
+Then open:
+
+```text
+http://localhost:5173
+```
+
+Useful API checks:
+
+```bash
+curl http://localhost:8080/api/v1/info
+curl http://localhost:8080/actuator/health
+curl http://localhost:8080/api/v1/workers
+```
+
+Submit a job:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "MATRIX_MULTIPLY",
+    "priority": 100,
+    "payload": {"matrixSize": 64},
+    "estimatedDurationMs": 2000,
+    "idempotencyKey": "readme-demo-1"
+  }'
+```
+
+List jobs:
+
+```bash
+curl http://localhost:8080/api/v1/jobs
+```
+
+Change the scheduler policy:
+
+```bash
+curl -X PUT http://localhost:8080/api/v1/policies/active \
+  -H "Content-Type: application/json" \
+  -d '{"policy": "LEAST_LOADED"}'
+```
+
+## Running Without Docker
+
+Install:
+
+- Java 21
+- Maven 3.9+
+- PostgreSQL
+- Redis
+- Node.js 20+
+
+Run backend services:
+
+```bash
+mvn clean verify
+mvn -pl scheduler-service spring-boot:run
+mvn -pl worker-service spring-boot:run
+```
+
+Run the frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Default frontend URL:
+
+```text
+http://localhost:5173
+```
+
+## Main API Surface
+
+Scheduler:
 
 ```http
 GET /api/v1/info
@@ -104,122 +218,49 @@ GET /api/v1/policies
 PUT /api/v1/policies/active
 GET /api/v1/metrics/summary
 GET /actuator/health
-GET /actuator/health/readiness
 GET /actuator/prometheus
 ```
 
-Default local port: `8080`.
-
-### Worker Service
-
-Workers are the execution plane. They will register with the scheduler, send heartbeats, execute assigned jobs, and report completion metadata.
-
-Current endpoint:
+Worker:
 
 ```http
 GET /api/v1/info
 POST /api/v1/jobs/execute
 GET /actuator/health
-GET /actuator/health/readiness
 GET /actuator/prometheus
 ```
 
-Default exposed local worker port: `8081` for `worker-1`.
+## Metrics and Benchmarks
 
-## Running Locally
+The scheduler exposes a metrics summary API and Prometheus-compatible metrics.
 
-### With Docker Compose
-
-After Docker is installed:
+Run a benchmark against a running scheduler:
 
 ```bash
-docker compose up --build
+python3 benchmarks/benchmark_runner.py \
+  --policy LEAST_LOADED \
+  --workload duration_skew \
+  --jobs 40
 ```
 
-Then open the dashboard:
-
-```text
-http://localhost:5173
-```
-
-Or check the APIs directly:
+Train the policy-selection experiment:
 
 ```bash
-curl http://localhost:8080/api/v1/info
-curl http://localhost:8081/api/v1/info
-curl http://localhost:8080/actuator/health
+python3 -m pip install -r ml/requirements.txt
+python3 ml/train_policy_selector.py
 ```
 
-Submit a queued job:
+The ML component is intentionally small. It is included to explore whether simple workload features can help pick a scheduling policy; it is not presented as a production-grade prediction system.
 
-```bash
-curl -X POST http://localhost:8080/api/v1/jobs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "MATRIX_MULTIPLY",
-    "priority": 100,
-    "payload": {"matrixSize": 64},
-    "estimatedDurationMs": 2000,
-    "idempotencyKey": "readme-demo-1"
-}'
-```
+## Public Deployment
 
-Then watch it execute:
+The practical public-demo setup is:
 
-```bash
-curl http://localhost:8080/api/v1/jobs
-```
+- Frontend on Vercel
+- Scheduler and workers on a container host such as Railway, Render, or a VM
+- Managed PostgreSQL and Redis
 
-The job should move from `QUEUED` to `RUNNING`, then to `COMPLETED`.
-
-Change the active scheduler policy:
-
-```bash
-curl -X PUT http://localhost:8080/api/v1/policies/active \
-  -H "Content-Type: application/json" \
-  -d '{"policy": "LEAST_LOADED"}'
-```
-
-Supported workload types:
-
-| Type | Example payload |
-| --- | --- |
-| `CPU_BENCHMARK` | `{"upperBound": 50000}` |
-| `MATRIX_MULTIPLY` | `{"matrixSize": 64}` |
-| `HASH_COMPUTE` | `{"iterations": 100000}` |
-| `SORT_BENCHMARK` | `{"itemCount": 100000}` |
-| `MONTE_CARLO_PI` | `{"samples": 250000}` |
-| `JSON_TRANSFORM` | `{"records": 50000}` |
-| `GRAPH_TRAVERSAL` | `{"nodes": 2000, "edgesPerNode": 4}` |
-
-Workers execute these bounded built-in workloads. They do not run arbitrary user code.
-
-### Without Docker
-
-Install:
-
-- Java 21
-- Maven 3.9+
-- PostgreSQL
-- Redis
-
-Then run:
-
-```bash
-mvn clean verify
-mvn -pl scheduler-service spring-boot:run
-mvn -pl worker-service spring-boot:run
-```
-
-Run the frontend in a separate terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Default frontend URL: `http://localhost:5173`.
+Detailed Railway/Vercel notes are in [docs/deployment.md](docs/deployment.md).
 
 ## Environment Variables
 
@@ -241,7 +282,7 @@ Scheduler:
 | `ORCHESTRATOR_DISPATCH_ENABLED` | `true` | Enables scheduler job dispatch loop |
 | `ORCHESTRATOR_DISPATCH_INTERVAL_MS` | `1000` | Delay between dispatch attempts in milliseconds |
 | `ORCHESTRATOR_DISPATCH_MAX_JOBS_PER_TICK` | `1` | Maximum jobs dispatched per scheduler tick |
-| `ORCHESTRATOR_SCHEDULING_POLICY` | `LEAST_LOADED` | Active scheduling policy: `ROUND_ROBIN`, `LEAST_LOADED`, `PRIORITY_AWARE`, `SHORTEST_JOB_FIRST`, or `ADAPTIVE` |
+| `ORCHESTRATOR_SCHEDULING_POLICY` | `LEAST_LOADED` | Active scheduling policy |
 | `ORCHESTRATOR_FAULT_TOLERANCE_ENABLED` | `true` | Enables job reclaim and retry monitor |
 | `ORCHESTRATOR_IN_FLIGHT_TIMEOUT` | `60s` | Time after which an in-flight job is considered stuck |
 | `ORCHESTRATOR_FAULT_SCAN_INTERVAL_MS` | `5000` | Delay between fault-tolerance scans in milliseconds |
@@ -268,50 +309,16 @@ Frontend:
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | same-origin `/api` | Public scheduler URL when the frontend is hosted separately |
 
-## Public Deployment
+## Project Notes
 
-The fastest public demo path is:
+The project was built in phases:
 
-- Frontend on Vercel
-- Scheduler and workers on Railway
-- PostgreSQL and Redis as Railway managed services
-
-Detailed deployment steps are in [docs/deployment.md](docs/deployment.md).
-
-## Phase Roadmap
-
-1. Project skeleton and local infrastructure
+1. Local infrastructure and service skeletons
 2. Job submission and persistence
 3. Worker registration and heartbeats
-4. Basic scheduling and job execution
-5. Pluggable scheduling policies
-6. Fault tolerance and retry semantics
+4. Scheduling and execution
+5. Multiple scheduling policies
+6. Fault tolerance and retries
 7. Metrics and benchmarking
-8. Adaptive / ML-assisted policy selection
-9. Frontend dashboard and UI polish
-
-## Benchmark and ML Tooling
-
-Run a benchmark against a running scheduler:
-
-```bash
-python3 benchmarks/benchmark_runner.py \
-  --policy LEAST_LOADED \
-  --workload duration_skew \
-  --jobs 40
-```
-
-Train the policy selector:
-
-```bash
-python3 -m pip install -r ml/requirements.txt
-python3 ml/train_policy_selector.py
-```
-
-## Engineering Principles
-
-- Keep scheduler and worker responsibilities separate.
-- Store durable history in PostgreSQL; keep fast-changing queue/state in Redis.
-- Make scheduling policies pluggable and benchmarkable.
-- Prefer measurable claims over vague feature lists.
-- Treat failure behavior as a first-class requirement, not a stretch polish item.
+8. Adaptive policy-selection experiment
+9. Frontend dashboard
