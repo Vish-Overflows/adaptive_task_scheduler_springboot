@@ -1,5 +1,5 @@
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${PORT:${SERVER_PORT:8080}}
 
 spring:
   application:
@@ -32,6 +32,8 @@ management:
       show-details: when_authorized
 
 orchestrator:
+  web:
+    allowed-origins: ${ORCHESTRATOR_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080}
   scheduler:
     service-name: scheduler-service
     version: 0.1.0

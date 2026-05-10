@@ -227,12 +227,14 @@ Scheduler:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `PORT` | unset | Cloud platform HTTP port override, used before `SERVER_PORT` |
 | `SERVER_PORT` | `8080` | Scheduler HTTP port |
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/orchestrator` | PostgreSQL JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | `orchestrator` | Database username |
 | `SPRING_DATASOURCE_PASSWORD` | `orchestrator` | Database password |
 | `SPRING_DATA_REDIS_HOST` | `localhost` | Redis host |
 | `SPRING_DATA_REDIS_PORT` | `6379` | Redis port |
+| `ORCHESTRATOR_ALLOWED_ORIGINS` | local frontend URLs | Comma-separated browser origins allowed to call the scheduler API |
 | `ORCHESTRATOR_PENDING_JOBS_KEY` | `orchestrator:jobs:pending` | Redis pending job queue key |
 | `ORCHESTRATOR_WORKER_REGISTRY_KEY` | `orchestrator:workers:registry` | Redis worker registry hash key |
 | `ORCHESTRATOR_WORKER_HEARTBEAT_TIMEOUT` | `15s` | Age after which a worker is marked unhealthy |
@@ -250,6 +252,7 @@ Worker:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `PORT` | unset | Cloud platform HTTP port override, used before `SERVER_PORT` |
 | `SERVER_PORT` | `8081` | Worker HTTP port |
 | `WORKER_ID` | `worker-local-1` | Stable worker identity |
 | `SCHEDULER_BASE_URL` | `http://localhost:8080` | Scheduler base URL |
@@ -258,6 +261,22 @@ Worker:
 | `WORKER_MAX_CONCURRENT_JOBS` | `4` | Advertised worker execution capacity |
 | `WORKER_REGISTRATION_ENABLED` | `true` | Enables scheduler registration and heartbeat loop |
 | `ORCHESTRATOR_ENVIRONMENT` | `local` | Runtime environment label |
+
+Frontend:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VITE_API_BASE_URL` | same-origin `/api` | Public scheduler URL when the frontend is hosted separately |
+
+## Public Deployment
+
+The fastest public demo path is:
+
+- Frontend on Vercel
+- Scheduler and workers on Railway
+- PostgreSQL and Redis as Railway managed services
+
+Detailed deployment steps are in [docs/deployment.md](docs/deployment.md).
 
 ## Phase Roadmap
 
