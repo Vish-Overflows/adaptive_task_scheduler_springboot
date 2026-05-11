@@ -47,6 +47,9 @@ public class JobEntity {
     @Column(name = "scheduled_policy", length = 40)
     private String scheduledPolicy;
 
+    @Column(name = "dispatch_attempt_id")
+    private UUID dispatchAttemptId;
+
     @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
@@ -124,6 +127,7 @@ public class JobEntity {
         this.status = JobStatus.SCHEDULED;
         this.assignedWorkerId = workerId;
         this.scheduledPolicy = policy;
+        this.dispatchAttemptId = UUID.randomUUID();
         this.updatedAt = Instant.now(clock);
     }
 
@@ -152,6 +156,7 @@ public class JobEntity {
         this.status = JobStatus.QUEUED;
         this.assignedWorkerId = null;
         this.scheduledPolicy = null;
+        this.dispatchAttemptId = null;
         this.retryCount++;
         Instant now = Instant.now(clock);
         this.queuedAt = now;
@@ -164,6 +169,7 @@ public class JobEntity {
         this.status = JobStatus.QUEUED;
         this.assignedWorkerId = null;
         this.scheduledPolicy = null;
+        this.dispatchAttemptId = null;
         Instant now = Instant.now(clock);
         this.queuedAt = now;
         this.startedAt = null;
@@ -221,6 +227,10 @@ public class JobEntity {
 
     public String getScheduledPolicy() {
         return scheduledPolicy;
+    }
+
+    public UUID getDispatchAttemptId() {
+        return dispatchAttemptId;
     }
 
     public int getRetryCount() {

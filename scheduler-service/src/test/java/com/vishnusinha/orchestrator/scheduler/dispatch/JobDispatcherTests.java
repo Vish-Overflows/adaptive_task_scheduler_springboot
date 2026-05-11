@@ -65,6 +65,7 @@ class JobDispatcherTests {
         assertThat(dispatched).isTrue();
         assertThat(job.getStatus()).isEqualTo(JobStatus.RUNNING);
         assertThat(job.getAssignedWorkerId()).isEqualTo("worker-1");
+        assertThat(job.getDispatchAttemptId()).isNotNull();
         verify(workerDispatchClient).dispatch(job, worker);
     }
 

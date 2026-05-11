@@ -91,6 +91,7 @@ public class WorkerExecutionService {
     ) {
         CompleteJobRequest completion = new CompleteJobRequest(
                 request.jobId(),
+                request.dispatchAttemptId(),
                 properties.workerId(),
                 status,
                 message,

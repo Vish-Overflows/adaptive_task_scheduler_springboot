@@ -47,6 +47,9 @@ It does not claim exactly-once execution.
 
 - Job submission persists a record before queueing.
 - Optional idempotency keys prevent duplicate client submissions from creating duplicate jobs.
+- Every dispatch creates a fresh attempt token.
+- Workers must include the attempt token when reporting completion.
+- Stale completion callbacks from older attempts are rejected.
 - Completion callbacks are guarded so a terminal job is not completed twice.
 - Retry count limits prevent infinite retry loops.
 
@@ -56,6 +59,7 @@ It does not claim exactly-once execution.
 - A stuck-job scan may eventually requeue that job.
 - Another worker may execute the same job attempt.
 - The scheduler may receive a late callback from the original worker.
+- A late callback from an older attempt will be rejected, but the old work may still have consumed resources.
 
 For the built-in workloads this is acceptable because they are deterministic, bounded computations without external side effects.
 
@@ -80,10 +84,9 @@ What is not yet fully hardened:
 
 - atomic multi-key scheduling transactions
 - Lua-scripted claim operations
-- per-job attempt tokens
 - compare-and-set style worker assignment
 
-A stronger design would atomically move jobs from pending to in-flight and attach an attempt ID. Completion would then be accepted only if the attempt ID matches the latest scheduler assignment.
+The current implementation does use per-dispatch attempt tokens to reject stale completions. A stronger Redis design would also atomically move jobs from pending to in-flight and attach the attempt token as part of the same claim operation.
 
 ## Worker Failures
 

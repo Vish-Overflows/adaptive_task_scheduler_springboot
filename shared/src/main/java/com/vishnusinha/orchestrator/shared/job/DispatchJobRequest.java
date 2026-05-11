@@ -11,6 +11,9 @@ public record DispatchJobRequest(
         @NotNull
         UUID jobId,
 
+        @NotNull
+        UUID dispatchAttemptId,
+
         @NotBlank
         String type,
 

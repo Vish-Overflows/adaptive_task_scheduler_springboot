@@ -81,7 +81,9 @@ That means:
 
 - A submitted job is persisted before it is queued.
 - The scheduler may retry a job if the assigned worker becomes unhealthy or the job appears stuck.
+- Each dispatch creates a unique attempt token that the worker must echo back on completion.
 - A worker completion callback is idempotent at the scheduler boundary: duplicate terminal callbacks are rejected instead of moving the job twice.
+- Stale completions from older dispatch attempts are rejected.
 - Exactly-once execution is not claimed. In a real distributed system, exactly-once execution would require stronger coordination between scheduler, worker, durable state, and the side effects of the job itself.
 
 For the current built-in workloads this is acceptable because they are bounded computations without external side effects. If workers were allowed to send emails, charge cards, or mutate external systems, the job handlers would need idempotency keys or transactional side-effect handling.
@@ -323,6 +325,7 @@ Current test coverage focuses on:
 - scheduling policy selection
 - dispatch behavior
 - completion callback handling
+- stale dispatch-attempt rejection
 - fault recovery and retry handling
 - worker workload catalog behavior
 

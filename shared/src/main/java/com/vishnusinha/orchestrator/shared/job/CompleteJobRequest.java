@@ -10,6 +10,9 @@ public record CompleteJobRequest(
         @NotNull
         UUID jobId,
 
+        @NotNull
+        UUID dispatchAttemptId,
+
         @NotBlank
         String workerId,
 

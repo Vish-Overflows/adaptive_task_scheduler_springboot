@@ -40,6 +40,12 @@ public class JobCompletionService {
             );
         }
 
+        if (job.getDispatchAttemptId() == null || !job.getDispatchAttemptId().equals(request.dispatchAttemptId())) {
+            throw new JobCompletionRejectedException(
+                    "Completion attempt %s is stale for job %s".formatted(request.dispatchAttemptId(), request.jobId())
+            );
+        }
+
         if (job.getStatus() == JobStatus.COMPLETED || job.getStatus() == JobStatus.FAILED) {
             return job;
         }

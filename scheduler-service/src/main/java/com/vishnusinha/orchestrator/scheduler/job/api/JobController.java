@@ -72,6 +72,7 @@ public class JobController {
     ) {
         CompleteJobRequest normalized = new CompleteJobRequest(
                 jobId,
+                request.dispatchAttemptId(),
                 request.workerId(),
                 request.status(),
                 request.message(),

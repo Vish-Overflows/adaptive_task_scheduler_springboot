@@ -48,6 +48,7 @@ class JobCompletionServiceTests {
 
         JobEntity completed = jobCompletionService.complete(new CompleteJobRequest(
                 jobId,
+                job.getDispatchAttemptId(),
                 "worker-1",
                 JobExecutionStatus.COMPLETED,
                 "ok",
@@ -69,6 +70,7 @@ class JobCompletionServiceTests {
 
         assertThatThrownBy(() -> jobCompletionService.complete(new CompleteJobRequest(
                 jobId,
+                job.getDispatchAttemptId(),
                 "worker-2",
                 JobExecutionStatus.COMPLETED,
                 "wrong worker",
@@ -88,6 +90,7 @@ class JobCompletionServiceTests {
 
         JobEntity completed = jobCompletionService.complete(new CompleteJobRequest(
                 jobId,
+                job.getDispatchAttemptId(),
                 "worker-1",
                 JobExecutionStatus.COMPLETED,
                 "duplicate",
@@ -95,6 +98,27 @@ class JobCompletionServiceTests {
         ));
 
         assertThat(completed).isSameAs(job);
+        verify(jobRepository, never()).saveAndFlush(any(JobEntity.class));
+    }
+
+    @Test
+    void rejectsCompletionWithStaleDispatchAttempt() {
+        UUID jobId = UUID.randomUUID();
+        JobEntity job = queuedJob(jobId);
+        job.markScheduled("worker-1", CLOCK);
+        job.markRunning(CLOCK);
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+
+        assertThatThrownBy(() -> jobCompletionService.complete(new CompleteJobRequest(
+                jobId,
+                UUID.randomUUID(),
+                "worker-1",
+                JobExecutionStatus.COMPLETED,
+                "stale attempt",
+                1000
+        ))).isInstanceOf(JobCompletionRejectedException.class);
+
         verify(jobRepository, never()).saveAndFlush(any(JobEntity.class));
     }
 
@@ -110,6 +134,7 @@ class JobCompletionServiceTests {
 
         jobCompletionService.complete(new CompleteJobRequest(
                 jobId,
+                job.getDispatchAttemptId(),
                 "worker-1",
                 JobExecutionStatus.FAILED,
                 "simulated failure",

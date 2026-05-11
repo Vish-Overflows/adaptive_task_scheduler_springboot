@@ -19,6 +19,7 @@ public class WorkerDispatchClient {
     public void dispatch(JobEntity job, WorkerState worker) {
         DispatchJobRequest request = new DispatchJobRequest(
                 job.getId(),
+                job.getDispatchAttemptId(),
                 job.getType(),
                 job.getPayload(),
                 job.getEstimatedDurationMs()
