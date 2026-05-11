@@ -73,6 +73,21 @@ Browser / API client
 
 The React frontend talks to the scheduler API. It does not talk directly to Redis, Postgres, or workers.
 
+## Execution Guarantees
+
+The current system is designed around **at-least-once dispatch attempts**, not exactly-once execution.
+
+That means:
+
+- A submitted job is persisted before it is queued.
+- The scheduler may retry a job if the assigned worker becomes unhealthy or the job appears stuck.
+- A worker completion callback is idempotent at the scheduler boundary: duplicate terminal callbacks are rejected instead of moving the job twice.
+- Exactly-once execution is not claimed. In a real distributed system, exactly-once execution would require stronger coordination between scheduler, worker, durable state, and the side effects of the job itself.
+
+For the current built-in workloads this is acceptable because they are bounded computations without external side effects. If workers were allowed to send emails, charge cards, or mutate external systems, the job handlers would need idempotency keys or transactional side-effect handling.
+
+More detail is in [docs/limitations-and-guarantees.md](docs/limitations-and-guarantees.md).
+
 ## Scheduling Policies
 
 The scheduler currently supports:
@@ -252,6 +267,73 @@ python3 ml/train_policy_selector.py
 
 The ML component is intentionally small. It is included to explore whether simple workload features can help pick a scheduling policy; it is not presented as a production-grade prediction system.
 
+Benchmark output is expected under:
+
+```text
+artifacts/benchmarks/
+```
+
+Plots and summarized benchmark evidence should be placed under:
+
+```text
+results/
+```
+
+The current benchmark harness records queue wait and latency fields, but the repository does not yet include a full published benchmark report with policy comparison graphs. That is an intentional next step, not a hidden claim.
+
+## Observability
+
+Current observability:
+
+- Spring Boot Actuator health endpoints
+- Prometheus metrics endpoint
+- JSON metrics summary for the dashboard
+- job lifecycle timestamps in PostgreSQL
+- worker heartbeat and load state in Redis
+
+Not yet implemented:
+
+- Grafana dashboard JSON
+- OpenTelemetry tracing
+- request correlation IDs across scheduler and workers
+- structured JSON logs
+- distributed traces for a full job lifecycle
+
+Those would be natural next steps if this were pushed toward a platform-engineering style deployment.
+
+## Testing
+
+Run the Java test suite:
+
+```bash
+mvn clean test
+```
+
+Run the frontend production build:
+
+```bash
+cd frontend
+npm run build
+```
+
+Current test coverage focuses on:
+
+- job submission behavior
+- worker registry behavior
+- scheduling policy selection
+- dispatch behavior
+- completion callback handling
+- fault recovery and retry handling
+- worker workload catalog behavior
+
+Important tests still worth adding:
+
+- full Docker Compose integration tests
+- concurrent job submission and dispatch tests
+- Redis atomicity tests around queue operations
+- fault-injection tests that kill workers mid-job
+- load tests with benchmark result snapshots
+
 ## Public Deployment
 
 The practical public-demo setup is:
@@ -322,3 +404,11 @@ The project was built in phases:
 7. Metrics and benchmarking
 8. Adaptive policy-selection experiment
 9. Frontend dashboard
+
+## Current Limitations
+
+The scheduler is currently a single control-plane process. If it dies, workers stop receiving new assignments until it restarts. Redis and PostgreSQL keep enough state for recovery, but there is no leader election, replicated scheduler, or consensus protocol.
+
+This is a deliberate scope boundary for the current project. The goal is to explore scheduling behavior, worker health, retries, metrics, and benchmarking without pretending to implement a fully replicated production scheduler.
+
+See [docs/limitations-and-guarantees.md](docs/limitations-and-guarantees.md) for the exact non-goals and consistency notes.
